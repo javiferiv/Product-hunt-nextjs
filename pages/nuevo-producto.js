@@ -1,16 +1,12 @@
 import React from 'react';
-import styled from '@emotion/styled';
 import Layout from './../components/layout/Layouts'
 
-const Heading = styled.h1`
-  color: red;
-`
 
-export default function Nosotros() {
+export default function NuevoProducto() {
     return (
         <div>
             <Layout>
-                <Heading>Nosotros</Heading>
+                <h1>Nuevo Producto</h1>
             </Layout>
         </div>
     )

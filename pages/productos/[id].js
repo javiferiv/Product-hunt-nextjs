@@ -35,6 +35,7 @@ const Producto = () => {
     const [producto, guardarProducto] = useState({});
     const [error, guardarError] = useState(false);
     const [comentario, guardarComentario] = useState({});
+    const [consultarDB, guardarConsultaDB] = useState(true);
 
     //Routing para obtener el ID actual
     const router = useRouter();
@@ -44,22 +45,24 @@ const Producto = () => {
     const { firebase, usuario } = useContext(FirebaseContext);
 
     useEffect(() => {
-        if (id) {
+        if (id && consultarDB) {
             const obtenerProducto = async () => {
                 const productoQuery = await firebase.db.collection('productos').doc(id);
                 const producto = await productoQuery.get();
                 if (producto.exists) {
                     guardarProducto(producto.data());
+                    guardarConsultaDB(false);
                 }
                 else {
                     guardarError(true);
+                    guardarConsultaDB(false);
                 }
             }
             obtenerProducto();
         }
-    }, [id, producto]);
+    }, [id]);
 
-    if (Object.keys(producto).length === 0) return 'Cargando...';
+    if (Object.keys(producto).length === 0 && !error) return 'Cargando...';
 
     const { comentarios, creado, descripcion, empresa, nombre, url, urlimagen, votos, creador, haVotado } = producto;
 
@@ -90,6 +93,9 @@ const Producto = () => {
             ...producto,
             votos: nuevoTotal
         })
+        
+        guardarConsultaDB(true);
+
     };
 
     //Funciones para crear comentarios
@@ -134,83 +140,118 @@ const Producto = () => {
 
         //Resetear el formulario de mensaje
         comentario.mensaje = "";
+
+        guardarConsultaDB(true);
+    }
+
+    //Función que revisa que el creador del producto sea el mismo que el que esta logueado
+    const puedeBorrar = () => {
+        if(!usuario){
+            return false
+        }
+        if(creador.id === usuario.uid){
+            return true
+        }
+    }
+
+    //Elimina un producto de la BBDD
+    const eliminarProducto = async () => {
+        if (!usuario) {
+            return router.push('/login')
+        }
+        if (creador.id !== usuario.uid) {
+            return router.push('/')
+        }
+        try {
+            await firebase.db.collection('productos').doc(id).delete();
+            router.push('/')
+        }
+        catch (error) {
+            console.log(error)
+        }
     }
     
     return (
         <Layout>
             <>
-                {error && <Error404 />}
-                <div className="contenedor">
-                    <h1 css={css`text-align: center; margin-top: 5rem;`}>{nombre}</h1>
-                    
-                    <ContenedorProducto>
-                        <div>
-                            <p>Publicado hace: {formatDistanceToNow(new Date(creado), { locale: es })} </p>
-                            <p>Autor: {creador.nombre} de {empresa}</p>
-                            <img src={urlimagen} alt="Imagen Curso"/>
-                            <p>{descripcion}</p>
+                {error ? <Error404 /> : (
+                    <div className="contenedor">
+                        <h1 css={css`text-align: center; margin-top: 5rem;`}>{nombre}</h1>
 
-                            {usuario && (
-                                <>
-                                    <h2>Agrega tu comentario</h2>
-                                    <form
-                                        onSubmit={agregarComentario}
-                                    >
-                                        <Campo>
-                                            <input
-                                                type="text"
-                                                required
-                                                name="mensaje"
-                                                onChange={comentarioChange}
-                                            />
-                                        </Campo>
-                                        <InputSubmit
-                                            type="submit"
-                                            value="Agregar Comentario"
-                                        />
-                                    </form>
-                                </>
-                            )}
+                        <ContenedorProducto>
+                            <div>
+                                <p>Publicado hace: {formatDistanceToNow(new Date(creado), { locale: es })} </p>
+                                <p>Autor: {creador.nombre} de {empresa}</p>
+                                <img src={urlimagen} alt="Imagen Curso" />
+                                <p>{descripcion}</p>
 
-                            <h2 css={css`margin: 2rem 0;`}>Comentarios</h2>
-                            {comentarios.length === 0 ? "Aun no hay comentarios" : (
-                                <ul>
-                                    {comentarios.map(comentario => (
-                                        <li
-                                            key={`${comentario.usuarioId}`}
-                                            css={css`border:1px solid #e1e1e1; padding: 2rem;`}
-                                        >
-                                            <p>{comentario.mensaje}</p>
-                                            <p>Escrito por:
-                                                <span css={css`font-weight:bold;`}>{""}{comentario.usuarioNombre}</span>
-                                            </p>
-                                            {esCreador(comentario.usuarioId) && <CreadorProducto>Es Creador</CreadorProducto>}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
-                        
-                        <aside>
-                            
-                            <Boton
-                                target="_blank"
-                                bgColor="true"
-                                href={url}
-                            >Visitar URL</Boton>
-
-                            <div css={css`margin-top: 5rem;`}>
-                                <p css={css`text-align: center;`}>{votos} Votos</p>
                                 {usuario && (
-                                    <Boton
-                                        onClick={votarProducto}
-                                    >Votar</Boton>
+                                    <>
+                                        <h2>Agrega tu comentario</h2>
+                                        <form
+                                            onSubmit={agregarComentario}
+                                        >
+                                            <Campo>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    name="mensaje"
+                                                    onChange={comentarioChange}
+                                                />
+                                            </Campo>
+                                            <InputSubmit
+                                                type="submit"
+                                                value="Agregar Comentario"
+                                            />
+                                        </form>
+                                    </>
+                                )}
+
+                                <h2 css={css`margin: 2rem 0;`}>Comentarios</h2>
+                                {comentarios.length === 0 ? "Aun no hay comentarios" : (
+                                    <ul>
+                                        {comentarios.map(comentario => (
+                                            <li
+                                                key={`${comentario.usuarioId}`}
+                                                css={css`border:1px solid #e1e1e1; padding: 2rem;`}
+                                            >
+                                                <p>{comentario.mensaje}</p>
+                                                <p>Escrito por:
+                                                <span css={css`font-weight:bold;`}>{""}{comentario.usuarioNombre}</span>
+                                                </p>
+                                                {esCreador(comentario.usuarioId) && <CreadorProducto>Es Creador</CreadorProducto>}
+                                            </li>
+                                        ))}
+                                    </ul>
                                 )}
                             </div>
 
-                        </aside>
-                    </ContenedorProducto>
-                </div>
+                            <aside>
+
+                                <Boton
+                                    target="_blank"
+                                    bgColor="true"
+                                    href={url}
+                                >Visitar URL</Boton>
+
+                                <div css={css`margin-top: 5rem;`}>
+                                    <p css={css`text-align: center;`}>{votos} Votos</p>
+                                    {usuario && (
+                                        <Boton
+                                            onClick={votarProducto}
+                                        >Votar</Boton>
+                                    )}
+                                </div>
+
+                            </aside>
+                        </ContenedorProducto>
+                        {puedeBorrar() &&
+                        <Boton
+                            onClick={eliminarProducto}
+                        >Eliminar Producto
+                        </Boton>}
+                    </div>
+                )}
             </>
         </Layout>
     
